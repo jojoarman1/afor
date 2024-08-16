@@ -12,9 +12,9 @@ from aiogram.types import ParseMode, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils import executor
 from aiogram.utils.exceptions import TelegramAPIError
 
-TOKEN = '6426877553:AAH21xz52t9CWn0uC4BMjnAYXmTeS-36Wtk'
-CHANNEL_ID = '-1002231203534'
-ADMIN_CHAT_ID = '735291377'
+TOKEN = '7458873675:AAGONp_oNZimbrEGax2nlRsrivnd1iVQFqQ'
+CHANNEL_ID = '-1002244000979'
+ADMIN_CHAT_ID = '1250100261'
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
@@ -807,8 +807,10 @@ async def schedule_results_post():
         await asyncio.sleep(wait_time)
         await send_results_post()
 
+
 # Определяем московский часовой пояс
 moscow_tz = pytz.timezone('Europe/Moscow')
+
 
 def get_next_execution_time(hour, minute):
     """Возвращает следующую дату и время для выполнения задачи в заданное время дня."""
@@ -817,6 +819,7 @@ def get_next_execution_time(hour, minute):
     if now > next_time:
         next_time += timedelta(days=1)
     return next_time
+
 
 async def notify_time_remaining():
     """Выводит в лог время до следующего поста и результатов."""
@@ -832,6 +835,8 @@ async def notify_time_remaining():
         logger.info(f'Осталось времени до следующего результата: {time_until_results}')
 
         await asyncio.sleep(60)  # Проверяем каждую минуту
+
+
 async def schedule_tasks():
     """Запускает задачи по расписанию и отслеживает оставшееся до них время."""
     while True:
