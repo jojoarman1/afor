@@ -446,7 +446,6 @@ def shuffle_aphorism(aphorism):
 def remove_punctuation(text):
     return text.translate(str.maketrans('', '', string.punctuation))
 
-
 @dp.callback_query_handler(lambda c: c.data.startswith('publish_'))
 async def publish_handler(callback_query: types.CallbackQuery):
     global first_message_id, active_order_post, order_post_time, user_order_finalized, shuffled_text_cache
@@ -456,7 +455,6 @@ async def publish_handler(callback_query: types.CallbackQuery):
     try:
         # Извлекаем афоризм пользователя и сохраняем порядок слов
         aphorism = user_aphorisms.get(user_id, "").upper()
-        # Удаляем пунктуацию из афоризма
         aphorism = remove_punctuation(aphorism)
         original_words = aphorism.split()
         user_aphorisms[user_id] = original_words
@@ -475,8 +473,8 @@ async def publish_handler(callback_query: types.CallbackQuery):
         bot_url = f"https://t.me/{bot_username}?start=order_{user_id}"
 
         msk_tz = pytz.timezone('Europe/Moscow')
-        publication_time = datetime.now(msk_tz).strftime('%H:%M:%S')  # Форматируем только время
-        today_date = datetime.now().strftime('%d.%m.%Y')
+        publication_time = datetime.now(msk_tz).strftime('%H:%M:%S')
+        today_date = datetime.now(msk_tz).strftime('%d.%m.%Y')
 
         # Создаем кнопку для возврата в сообщество
         channel_link = f'https://t.me/c/{CHANNEL_ID[4:]}'
@@ -493,7 +491,7 @@ async def publish_handler(callback_query: types.CallbackQuery):
 
         results_message = (
             f'<b>ДУХОВНАЯ ЭРУДИЦИЯ {today_date}.</b>\n\n'
-            f'Пожалуйста, нажмите на кнопку ниже и расположите в правильном порядке слова послания 🙏🏻\n\n '
+            f'Пожалуйста, нажмите на кнопку ниже и расположите в правильном порядке слова послания 🙏🏻\n\n'
             f'{shuffled_text_cache}\n\n'
             f'Правильных ответов: {correct_count}\n'
             f'Неправильных ответов: {incorrect_count}\n\n'
@@ -505,22 +503,12 @@ async def publish_handler(callback_query: types.CallbackQuery):
         first_name = user_data.get('first_name')
         last_name = user_data.get('last_name')
 
-        # Формируем имя пользователя
-        if username:
-            user_name = f'@{username}'
-        else:
-            if first_name and last_name:
-                user_name = f'@ {first_name} {last_name}'
-            elif first_name:
-                user_name = f'@ {first_name}'
-            else:
-                user_name = 'Неизвестный автор'
+        user_name = f'@{username}' if username else (f'{first_name} {last_name}' if first_name and last_name else 'Неизвестный автор')
 
         # Храним статус сообщения перед обновлением
         status_message = "Опубликовано"
         message_status[callback_query.message.message_id] = status_message
 
-        # Немедленно обновляем текст сообщения
         updated_text = (f"Автор: {user_name}\n\n"
                         f"Послание: {aphorism}\n\n"
                         f"Статус: {status_message}")
@@ -540,7 +528,8 @@ async def publish_handler(callback_query: types.CallbackQuery):
         order_post_time = asyncio.get_event_loop().time()
         active_order_post = True
 
-        # После обновления сообщения сразу вызываем функцию для публикации результатов
+        # Логируем вызов функции update_results_post
+        logger.info("Вызов update_results_post после публикации афоризма.")
         await update_results_post()
 
     except Exception as e:
@@ -548,6 +537,7 @@ async def publish_handler(callback_query: types.CallbackQuery):
         await callback_query.message.answer("Произошла ошибка при публикации афоризма. Попробуйте снова.")
 
     await callback_query.answer()
+
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('word_'))
@@ -644,8 +634,6 @@ async def clear_order_handler(callback_query: types.CallbackQuery):
 
 # Флаг для предотвращения повторного вызова send_results_post
 send_results_post_called = False
-
-
 async def update_results_post():
     global first_message_id, shuffled_text_cache, send_results_post_called
 
@@ -653,22 +641,14 @@ async def update_results_post():
         logger.info('Не удалось обновить сообщение, так как first_message_id равен None.')
         return
 
-    current_status = message_status.get(first_message_id)
-
-    if current_status == "Опубликовано":
-        logger.info(f"Сообщение уже опубликовано, статус не изменяется.")
-        return
-
-    correct_count = sum(user_order_finalized.values())
+    correct_count = sum(1 for finalized in user_order_finalized.values() if finalized)
     incorrect_count = len(user_order_finalized) - correct_count
 
     sample_user_id = next(iter(user_aphorisms))
     correct_aphorism = user_aphorisms[sample_user_id]
     shuffled_text = shuffled_text_cache
-    # Определяем московский часовой пояс
-    moscow_tz = pytz.timezone('Europe/Moscow')
 
-    # Получаем текущее время в московском времени
+    moscow_tz = pytz.timezone('Europe/Moscow')
     now = datetime.now(moscow_tz)
     today_date = now.strftime('%d.%m.%Y')
 
@@ -682,12 +662,14 @@ async def update_results_post():
 
     image_path = '2.png'
 
+    # Удаляем предыдущее сообщение
     try:
         await bot.delete_message(chat_id=CHANNEL_ID, message_id=first_message_id)
         logger.info(f'Удалено старое сообщение с ID {first_message_id} из канала {CHANNEL_ID}.')
     except Exception as e:
         logger.error(f'Ошибка при удалении старого сообщения с ID {first_message_id}: {e}')
 
+    # Публикуем новое сообщение с обновленной информацией
     try:
         bot_me = await bot.get_me()
         bot_username = bot_me.username
@@ -696,7 +678,7 @@ async def update_results_post():
             chat_id=CHANNEL_ID,
             photo=InputFile(image_path),
             caption=results_message,
-            parse_mode='HTML',  # Добавлено для использования HTML-разметки
+            parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup().add(
                 InlineKeyboardButton(
                     text='Упорядочить слова',
@@ -708,13 +690,13 @@ async def update_results_post():
         first_message_id = sent_message.message_id
         logger.info(f'Обновлено сообщение в канале с ID {CHANNEL_ID}. ID нового сообщения: {sent_message.message_id}')
 
-        # Запускаем функцию schedule_results_post для вызова send_results_post через 10 секунд
         if not send_results_post_called:
             send_results_post_called = True
             await schedule_results_post()
 
     except Exception as e:
         logger.error(f'Ошибка при обновлении сообщения в канале: {e}')
+
 
 
 async def send_results_post():
@@ -813,12 +795,12 @@ moscow_tz = pytz.timezone('Europe/Moscow')
 
 
 def get_next_execution_time(hour, minute):
-    """Возвращает следующую дату и время для выполнения задачи в заданное время дня."""
     now = datetime.now(moscow_tz)
     next_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if now > next_time:
-        next_time += timedelta(days=1)
+    if now >= next_time:
+        next_time += timedelta(days=1)  # Если время уже прошло, устанавливаем на следующий день
     return next_time
+
 
 
 async def notify_time_remaining():
@@ -834,29 +816,25 @@ async def notify_time_remaining():
         logger.info(f'Осталось времени до следующего поста: {time_until_post}')
         logger.info(f'Осталось времени до следующего результата: {time_until_results}')
 
-        await asyncio.sleep(60)  # Проверяем каждую минуту
+        await asyncio.sleep(10)  # Проверяем каждую минуту
 
 
 async def schedule_tasks():
-    """Запускает задачи по расписанию и отслеживает оставшееся до них время."""
     while True:
         now = datetime.now(moscow_tz)
-        next_post_time = get_next_execution_time(9, 0)  # 09:00
-        next_results_time = get_next_execution_time(21, 0)  # 21:00
+        next_post_time = get_next_execution_time(9, 0)  # Следующее время для поста
+        next_results_time = get_next_execution_time(21, 0)  # Следующее время для итогов
 
-        # Сколько времени до следующего поста
+        # Время до следующего поста и итогов
         time_until_post = (next_post_time - now).total_seconds()
-        # Сколько времени до следующего результата
         time_until_results = (next_results_time - now).total_seconds()
 
-        if time_until_post <= 0:
+        if time_until_post > 0:
+            await asyncio.sleep(time_until_post)
             await send_post()
-            next_post_time = get_next_execution_time(9, 0)  # Устанавливаем время следующего поста
-        if time_until_results <= 0:
+        if time_until_results > 0:
+            await asyncio.sleep(time_until_results)
             await send_results_post()
-            next_results_time = get_next_execution_time(21, 0)  # Устанавливаем время следующего результата
-
-        await asyncio.sleep(60)  # Проверяем каждую минуту
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('finalize_'))
@@ -885,8 +863,6 @@ async def finalize_order_handler(callback_query: types.CallbackQuery):
 
     # Получаем текущую дату
     moscow_tz = pytz.timezone('Europe/Moscow')
-
-    # Получаем текущее время в московском времени
     now = datetime.now(moscow_tz)
     today_date = now.strftime('%d.%m.%Y')
 
@@ -906,13 +882,19 @@ async def finalize_order_handler(callback_query: types.CallbackQuery):
     # Редактируем сообщение, убирая старые кнопки и добавляя новую кнопку
     await callback_query.message.edit_text(final_message_with_details, reply_markup=inline_keyboard,
                                            parse_mode='Markdown')
+
+    # Вызов функции для обновления поста с результатами
+    logger.info("Вызов update_results_post после завершения выбора порядка слов.")
+    await update_results_post()  # Вызов функции для обновления результатов
+
     # Очищаем временные данные пользователя
     if user_id in user_message_ids:
         del user_message_ids[user_id]
     if user_id in user_order_selections:
         del user_order_selections[user_id]
 
-    await send_results_post()  # Запуск отправки результатов сразу после завершения заказа
+    await callback_query.answer()
+
 
 
 if __name__ == '__main__':
